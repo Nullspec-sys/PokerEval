@@ -454,40 +454,24 @@
     }
 
     .confidence-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      display: block;
       margin-bottom: 14px;
+      text-align: center;
     }
 
     .confidence-main {
       min-width: 0;
-    }
-
-    .confidence-side {
       display: grid;
-      gap: 6px;
-      justify-items: end;
-      text-align: right;
+      justify-items: center;
     }
-
-    .confidence-side-label {
-      color: rgba(244,247,237,.62);
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .42px;
-      font-size: .72rem;
-    }
-
-    .confidence-value {
+.confidence-value {
       font-size: clamp(2.7rem, 8vw, 4.4rem);
       font-weight: 950;
       color: var(--gold);
       line-height: .92;
       letter-spacing: -0.03em;
       text-shadow: 0 8px 30px rgba(0,0,0,.42), 0 0 24px rgba(255,216,77,.10);
-      margin-top: 4px;
+      margin-top: 6px;
     }
 
     .confidence-label {
@@ -504,18 +488,7 @@
       font-size: .88rem;
       line-height: 1.25;
     }
-
-    .confidence-badge {
-      padding: 8px 12px;
-      min-height: 34px;
-      font-size: .78rem;
-      color: #112314;
-      background: linear-gradient(145deg, #fff2a6, #ffd84d);
-      border: 1px solid rgba(255,255,255,.34);
-      box-shadow: 0 10px 18px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.45);
-    }
-
-    .meter-wrap {
+.meter-wrap {
       position: relative;
       z-index: 1;
     }
@@ -712,8 +685,7 @@
       .stats-grid { grid-template-columns:1fr; }
       .confidence-top { align-items:flex-start; flex-direction:column; }
       .confidence-side { justify-items:start; text-align:left; }
-      .confidence-badge { width:max-content; }
-    }
+}
 
     /* Simplified click-to-enter evaluator layout */
     .simplified-layout {
@@ -885,11 +857,6 @@
               <div class="confidence-main">
                 <div class="confidence-label">Estimated Equity</div>
                 <div id="confidenceValue" class="confidence-value">—</div>
-                <div class="confidence-subtitle">Live against <span id="opponentCountInline">3</span> unknown opponents</div>
-              </div>
-              <div class="confidence-side">
-                <div class="confidence-side-label">Best Action</div>
-                <div id="handName" class="badge confidence-badge">Waiting</div>
               </div>
             </div>
             <div class="meter-wrap">
@@ -1491,8 +1458,6 @@
 
       const confidenceValue = document.getElementById('confidenceValue');
       const meterFill = document.getElementById('meterFill');
-      const handName = document.getElementById('handName');
-      const opponentCountInline = document.getElementById('opponentCountInline');
       const foldStat = document.getElementById('foldStat');
       const checkStat = document.getElementById('checkStat');
       const raiseStat = document.getElementById('raiseStat');
@@ -1500,12 +1465,9 @@
       const checkMeter = document.getElementById('checkMeter');
       const raiseMeter = document.getElementById('raiseMeter');
 
-      opponentCountInline.textContent = state.opponentCount;
-
       if (!evaluation || heroCount < 2) {
         confidenceValue.textContent = '—';
         meterFill.style.width = '0%';
-        handName.textContent = heroCount < 2 ? 'Add your hand' : 'Waiting';
         foldStat.textContent = '—';
         checkStat.textContent = '—';
         raiseStat.textContent = '—';
@@ -1519,7 +1481,6 @@
 
       confidenceValue.textContent = formatPct(evaluation.equity);
       meterFill.style.width = `${Math.max(0, Math.min(100, evaluation.equity * 100))}%`;
-      handName.textContent = preferredActionLabel(actions);
 
       foldStat.textContent = formatPct(actions.fold);
       checkStat.textContent = formatPct(actions.check);
