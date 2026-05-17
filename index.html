@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Texas Hold'em Confidence Evaluator</title>
+  <title>Texas Hold'em Action Evaluator</title>
   <style>
     :root {
       --felt-0:#020d07;
@@ -687,6 +687,104 @@
       }
     }
 
+
+    /* Action guidance refresh */
+    .action-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .action-card {
+      position: relative;
+      overflow: hidden;
+      padding: 12px;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(255,255,255,.10), transparent 35%),
+        rgba(0,0,0,.18);
+    }
+
+    .action-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .9;
+    }
+
+    .fold-action::before {
+      background: linear-gradient(145deg, rgba(239,68,68,.18), transparent 58%);
+    }
+
+    .check-action::before {
+      background: linear-gradient(145deg, rgba(145,239,232,.15), transparent 58%);
+    }
+
+    .raise-action::before {
+      background: linear-gradient(145deg, rgba(255,216,77,.18), transparent 58%);
+    }
+
+    .action-row {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+
+    .action-row strong {
+      font-size: clamp(1.1rem, 3vw, 1.55rem);
+      line-height: 1;
+    }
+
+    .action-row span {
+      text-align: right;
+      text-transform: uppercase;
+      letter-spacing: .35px;
+      font-size: .72rem;
+    }
+
+    .action-meter {
+      position: relative;
+      z-index: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.28);
+      border: 1px solid rgba(255,255,255,.08);
+      overflow: hidden;
+      box-shadow: inset 0 1px 4px rgba(0,0,0,.35);
+    }
+
+    .action-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      transition: width .18s ease;
+    }
+
+    #foldMeter { background: linear-gradient(90deg, #ef4444, #ff8a8a); }
+    #checkMeter { background: linear-gradient(90deg, #60a5fa, #91efe8); }
+    #raiseMeter { background: linear-gradient(90deg, #ffd84d, #4ade80); }
+
+    .confidence-label::after {
+      content: " · action tendencies, not a solved betting recommendation";
+      color: rgba(244,247,237,.55);
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    @media (max-width: 760px) {
+      .action-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .action-row span {
+        font-size: .76rem;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -694,8 +792,8 @@
     <header>
       <div>
         <div class="eyebrow">Poker Analysis Tool</div>
-        <h1>Hold'em Confidence Evaluator</h1>
-        <p class="header-copy">Click your two hole-card slots and the community-card slots to enter cards. Unknown bot/opponent hands are simulated from the remaining deck, so confidence updates as the board develops.</p>
+        <h1>Hold'em Action Evaluator</h1>
+        <p class="header-copy">Click your two hole-card slots and the community-card slots to enter cards. Unknown bot hands are simulated from the remaining deck, then translated into a simple Fold / Check-Call / Raise action guide.</p>
       </div>
       <div class="header-actions">
         <label class="field">Unknown opponents / bots
@@ -704,8 +802,8 @@
         <label class="field">Simulation quality
           <select id="simulationCount">
             <option value="600">Fast · 600 hands</option>
-            <option value="1500" selected>Balanced · 1,500 hands</option>
-            <option value="4000">Deeper · 4,000 hands</option>
+            <option value="1500">Balanced · 1,500 hands</option>
+            <option value="4000" selected>Deeper · 4,000 hands</option>
           </select>
         </label>
       </div>
@@ -723,10 +821,19 @@
             <div id="handName" class="badge">Waiting</div>
           </div>
           <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
-          <div class="stats-grid">
-            <div class="stat"><strong id="winStat">—</strong><span>Win</span></div>
-            <div class="stat"><strong id="tieStat">—</strong><span>Tie</span></div>
-            <div class="stat"><strong id="lossStat">—</strong><span>Lose</span></div>
+<div class="stats-grid action-grid">
+            <div class="stat action-card fold-action">
+              <div class="action-row"><strong id="foldStat">—</strong><span>Fold</span></div>
+              <div class="action-meter"><div id="foldMeter" class="action-fill"></div></div>
+            </div>
+            <div class="stat action-card check-action">
+              <div class="action-row"><strong id="checkStat">—</strong><span>Check / Call</span></div>
+              <div class="action-meter"><div id="checkMeter" class="action-fill"></div></div>
+            </div>
+            <div class="stat action-card raise-action">
+              <div class="action-row"><strong id="raiseStat">—</strong><span>Raise</span></div>
+              <div class="action-meter"><div id="raiseMeter" class="action-fill"></div></div>
+            </div>
           </div>
         </section>
 </aside>
@@ -786,8 +893,8 @@
     const rankOrder = [14,13,12,11,10,9,8,7,6,5,4,3,2];
 
     const state = {
-      opponentCount: 4,
-      simulationCount: 1500,
+      opponentCount: 3,
+      simulationCount: 4000,
       selectedCard: null,
       editingSlot: null,
       slots: {
@@ -945,6 +1052,105 @@
     function remainingDeck() {
       const used = usedKeys();
       return makeDeck().filter(card => !used.has(cardKey(card)));
+    }
+
+
+
+    function pluralRankName(rank) {
+      const names = {
+        14: 'Aces',
+        13: 'Kings',
+        12: 'Queens',
+        11: 'Jacks',
+        10: 'Tens',
+        9: 'Nines',
+        8: 'Eights',
+        7: 'Sevens',
+        6: 'Sixes',
+        5: 'Fives',
+        4: 'Fours',
+        3: 'Threes',
+        2: 'Twos'
+      };
+      return names[rank] || `${rankNames[rank]}s`;
+    }
+
+    function formatCurrentHandLabel(evalResult) {
+      if (!evalResult) return '—';
+      const t = evalResult.tie || [];
+
+      switch (evalResult.name) {
+        case 'One Pair':
+          return t[0] ? `Pair - ${pluralRankName(t[0])}` : 'Pair';
+        case 'Two Pair':
+          return (t[0] && t[1]) ? `Two Pair - ${pluralRankName(t[0])} and ${pluralRankName(t[1])}` : 'Two Pair';
+        case 'Three of a Kind':
+          return t[0] ? `Trips - ${pluralRankName(t[0])}` : 'Three of a Kind';
+        case 'Full House':
+          return (t[0] && t[1]) ? `Full House - ${pluralRankName(t[0])} full of ${pluralRankName(t[1])}` : 'Full House';
+        case 'Four of a Kind':
+          return t[0] ? `Quads - ${pluralRankName(t[0])}` : 'Four of a Kind';
+        case 'High Card':
+          return t[0] ? `High Card - ${rankNames[t[0]]}` : 'High Card';
+        case 'Straight':
+        case 'Straight Flush':
+          return t[0] ? `${evalResult.name} - ${rankNames[t[0]]} high` : evalResult.name;
+        case 'Flush':
+          return t[0] ? `Flush - ${rankNames[t[0]]} high` : 'Flush';
+        default:
+          return evalResult.name;
+      }
+    }
+
+    function evaluateVisibleHand(cards) {
+      if (!cards || cards.length < 2) return null;
+
+      const ranks = cards.map(c => c.rank).sort((a, b) => b - a);
+      const groups = {};
+      const suitGroups = {};
+
+      for (const c of cards) {
+        groups[c.rank] = (groups[c.rank] || 0) + 1;
+        suitGroups[c.suit] = (suitGroups[c.suit] || 0) + 1;
+      }
+
+      const groupArr = Object.keys(groups)
+        .map(r => ({ rank: parseInt(r, 10), count: groups[r] }))
+        .sort((a, b) => b.count === a.count ? b.rank - a.rank : b.count - a.count);
+
+      // With 5+ visible cards, use the full evaluator.
+      if (cards.length >= 5) {
+        return evaluateHand(cards);
+      }
+
+      // Partial-board / pre-flop evaluator:
+      // show the strongest made hand already present in the visible cards.
+      if (groupArr[0]?.count === 4) {
+        const kicker = ranks.find(r => r !== groupArr[0].rank);
+        return { value: 7, name: 'Four of a Kind', tie: [groupArr[0].rank, kicker].filter(Boolean) };
+      }
+
+      if (groupArr[0]?.count === 3) {
+        const pair = groupArr.find(g => g.rank !== groupArr[0].rank && g.count >= 2);
+        if (pair) return { value: 6, name: 'Full House', tie: [groupArr[0].rank, pair.rank] };
+        const kickers = ranks.filter(r => r !== groupArr[0].rank).slice(0, 2);
+        return { value: 3, name: 'Three of a Kind', tie: [groupArr[0].rank, ...kickers] };
+      }
+
+      const pairs = groupArr.filter(g => g.count >= 2);
+      if (pairs.length >= 2) {
+        const topPairs = pairs.slice(0, 2);
+        const kicker = ranks.find(r => r !== topPairs[0].rank && r !== topPairs[1].rank);
+        return { value: 2, name: 'Two Pair', tie: [topPairs[0].rank, topPairs[1].rank, kicker].filter(Boolean) };
+      }
+
+      if (pairs.length === 1) {
+        const pair = pairs[0];
+        const kickers = ranks.filter(r => r !== pair.rank).slice(0, 3);
+        return { value: 1, name: 'One Pair', tie: [pair.rank, ...kickers] };
+      }
+
+      return { value: 0, name: 'High Card', tie: ranks.slice(0, Math.min(5, ranks.length)) };
     }
 
     function evaluateConfidence() {
@@ -1129,6 +1335,79 @@
       return `${Math.round(value * 1000) / 10}%`;
     }
 
+
+
+    function tieText(evalResult) {
+      if (!evalResult || !evalResult.tie) return '';
+      return evalResult.tie
+        .filter(Boolean)
+        .map(v => rankNames[v] || String(v))
+        .join(', ');
+    }
+
+    function softmax(scores) {
+      const max = Math.max(...scores);
+      const exps = scores.map(score => Math.exp(score - max));
+      const sum = exps.reduce((a, b) => a + b, 0);
+      return exps.map(value => value / sum);
+    }
+
+    function calculateActionTendencies(evaluation) {
+      if (!evaluation) return null;
+
+      const equity = evaluation.equity;
+      const winRate = evaluation.winRate;
+      const tieRate = evaluation.tieRate;
+      const boardCount = state.slots.community.filter(Boolean).length;
+      const opponentPressure = Math.min(0.22, state.opponentCount * 0.028);
+      const incompleteBoard = boardCount < 5 ? 0.10 : 0;
+      const preflopUncertainty = boardCount === 0 ? 0.18 : 0;
+
+      // These are intentionally heuristic because the app does not know pot odds,
+      // position, stack sizes, current bet, or opponent betting line.
+      const foldScore =
+        ((0.42 - equity) * 5.0) +
+        opponentPressure +
+        (boardCount >= 3 && winRate < 0.22 ? 0.35 : 0);
+
+      const checkScore =
+        (1.0 - Math.abs(equity - 0.48) * 2.4) +
+        tieRate * 1.5 +
+        incompleteBoard +
+        preflopUncertainty;
+
+      const raiseScore =
+        ((equity - 0.52) * 5.2) +
+        ((winRate - 0.42) * 2.1) -
+        opponentPressure +
+        (boardCount >= 3 && equity > 0.62 ? 0.28 : 0);
+
+      let [fold, check, raise] = softmax([foldScore, checkScore, raiseScore]);
+
+      // Avoid fake certainty from Monte Carlo noise.
+      const floor = 0.03;
+      fold = Math.max(floor, fold);
+      check = Math.max(floor, check);
+      raise = Math.max(floor, raise);
+      const total = fold + check + raise;
+
+      return {
+        fold: fold / total,
+        check: check / total,
+        raise: raise / total
+      };
+    }
+
+    function preferredActionLabel(actions) {
+      if (!actions) return 'Waiting';
+      const entries = [
+        ['Fold', actions.fold],
+        ['Check / Call', actions.check],
+        ['Raise', actions.raise]
+      ].sort((a, b) => b[1] - a[1]);
+      return entries[0][0];
+    }
+
     function renderConfidence() {
       const evaluation = state.lastEvaluation;
       const heroCount = state.slots.hero.filter(Boolean).length;
@@ -1137,26 +1416,38 @@
       const confidenceValue = document.getElementById('confidenceValue');
       const meterFill = document.getElementById('meterFill');
       const handName = document.getElementById('handName');
-      const winStat = document.getElementById('winStat');
-      const tieStat = document.getElementById('tieStat');
-      const lossStat = document.getElementById('lossStat');
+      const foldStat = document.getElementById('foldStat');
+      const checkStat = document.getElementById('checkStat');
+      const raiseStat = document.getElementById('raiseStat');
+      const foldMeter = document.getElementById('foldMeter');
+      const checkMeter = document.getElementById('checkMeter');
+      const raiseMeter = document.getElementById('raiseMeter');
 
       if (!evaluation || heroCount < 2) {
         confidenceValue.textContent = '—';
         meterFill.style.width = '0%';
         handName.textContent = heroCount < 2 ? 'Add your hand' : 'Waiting';
-        winStat.textContent = '—';
-        tieStat.textContent = '—';
-        lossStat.textContent = '—';
+        foldStat.textContent = '—';
+        checkStat.textContent = '—';
+        raiseStat.textContent = '—';
+        foldMeter.style.width = '0%';
+        checkMeter.style.width = '0%';
+        raiseMeter.style.width = '0%';
         return;
       }
 
+      const actions = calculateActionTendencies(evaluation);
+
       confidenceValue.textContent = formatPct(evaluation.equity);
       meterFill.style.width = `${Math.max(0, Math.min(100, evaluation.equity * 100))}%`;
-      handName.textContent = evaluation.currentHand ? evaluation.currentHand.name : boardCount < 3 ? 'Pre-Flop Equity' : 'Drawing / Incomplete Board';
-      winStat.textContent = formatPct(evaluation.winRate);
-      tieStat.textContent = formatPct(evaluation.tieRate);
-      lossStat.textContent = formatPct(evaluation.lossRate);
+      handName.textContent = preferredActionLabel(actions);
+
+      foldStat.textContent = formatPct(actions.fold);
+      checkStat.textContent = formatPct(actions.check);
+      raiseStat.textContent = formatPct(actions.raise);
+      foldMeter.style.width = `${Math.round(actions.fold * 100)}%`;
+      checkMeter.style.width = `${Math.round(actions.check * 100)}%`;
+      raiseMeter.style.width = `${Math.round(actions.raise * 100)}%`;
     }
 
     function renderAll(recalculate = false) {
