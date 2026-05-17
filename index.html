@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Texas Hold'em Confidence Evaluator</title>
+  <style>
+    :root {
+      --felt-0:#020d07;
+      --felt-1:#063417;
+      --felt-2:#0b5a27;
+      --panel:rgba(9,34,18,.82);
+      --panel-strong:rgba(8,25,14,.94);
+      --line:rgba(255,255,255,.12);
+      --gold:#ffd84d;
+      --gold-soft:#fff1a8;
+      --cyan:#91efe8;
+      --red:#ef4444;
+      --text:#f4f7ed;
+      --muted:rgba(244,247,237,.72);
+      --shadow:0 18px 55px rgba(0,0,0,.35);
+      --radius-lg:22px;
+      --radius-md:16px;
+      --card-w: clamp(48px, 8vw, 72px);
+      --card-h: calc(var(--card-w) * 1.42);
+    }
+
+    * { box-sizing:border-box; }
+    html, body { min-height:100%; overflow-x:hidden; }
+    body {
+      margin:0;
+      min-height:100dvh;
+      color:var(--text);
+      font-family:Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background:
+        radial-gradient(circle at 16% 12%, rgba(255,216,77,.10), transparent 24%),
+        radial-gradient(circle at 82% 26%, rgba(145,239,232,.10), transparent 25%),
+        radial-gradient(circle at center, var(--felt-2), var(--felt-1) 46%, var(--felt-0));
+    }
+
+    body::before {
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.024) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:52px 52px;
+      mask-image:radial-gradient(circle at center, rgba(0,0,0,.75), transparent 78%);
+      -webkit-mask-image:radial-gradient(circle at center, rgba(0,0,0,.75), transparent 78%);
+    }
+
+    button, select, input { font:inherit; }
+
+    .app {
+      position:relative;
+      z-index:1;
+      width:min(100%, 1180px);
+      min-height:100dvh;
+      margin:0 auto;
+      padding:clamp(10px, 2vw, 20px);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    header, .panel, .toolbar, .slot, .modal-card {
+      border:1px solid var(--line);
+      background:linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.025)), var(--panel);
+      box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    @supports (backdrop-filter: blur(14px)) {
+      header, .panel, .toolbar, .slot, .modal-card {
+        backdrop-filter:blur(14px) saturate(1.08);
+        -webkit-backdrop-filter:blur(14px) saturate(1.08);
+      }
+    }
+
+    header {
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:12px;
+      align-items:center;
+      padding:clamp(14px, 2vw, 20px);
+      border-radius:var(--radius-lg);
+    }
+
+    .eyebrow {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      width:max-content;
+      padding:5px 10px;
+      border-radius:999px;
+      color:var(--gold-soft);
+      background:rgba(255,216,77,.11);
+      border:1px solid rgba(255,216,77,.18);
+      font-weight:850;
+      letter-spacing:.45px;
+      text-transform:uppercase;
+      font-size:.72rem;
+      margin-bottom:8px;
+    }
+
+    h1 {
+      margin:0;
+      font-size:clamp(1.45rem, 4vw, 2.55rem);
+      line-height:1;
+      color:var(--gold);
+      letter-spacing:.5px;
+      text-shadow:0 4px 18px rgba(0,0,0,.5), 0 0 22px rgba(255,216,77,.16);
+    }
+
+    .header-copy {
+      margin:8px 0 0;
+      max-width:74ch;
+      color:var(--muted);
+      line-height:1.45;
+      font-size:clamp(.92rem, 1.8vw, 1.02rem);
+    }
+
+    .header-actions {
+      display:grid;
+      gap:8px;
+      min-width:min(100%, 260px);
+    }
+
+    .field {
+      display:grid;
+      gap:6px;
+      color:var(--muted);
+      font-weight:750;
+      font-size:.88rem;
+    }
+
+    select {
+      width:100%;
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.24);
+      color:var(--text);
+      outline:none;
+      box-shadow:inset 0 1px 4px rgba(0,0,0,.24);
+    }
+
+    select:focus {
+      border-color:rgba(255,216,77,.55);
+      box-shadow:0 0 0 3px rgba(255,216,77,.13), inset 0 1px 4px rgba(0,0,0,.24);
+    }
+
+    .toolbar {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px;
+      border-radius:var(--radius-md);
+      background:linear-gradient(145deg, rgba(255,255,255,.065), rgba(255,255,255,.02)), rgba(3,15,9,.62);
+    }
+
+    .toolbar-group {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .btn {
+      min-height:40px;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:999px;
+      padding:9px 14px;
+      color:#fff;
+      background:linear-gradient(145deg, #36a0ff, #1763c5);
+      font-weight:850;
+      cursor:pointer;
+      box-shadow:0 10px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.16);
+      transition:transform .12s ease, filter .12s ease;
+    }
+    .btn:hover { transform:translateY(-1px); filter:brightness(1.06); }
+    .btn.secondary { background:linear-gradient(145deg, #696969, #464646); }
+    .btn.danger { background:linear-gradient(145deg, #ff4c4c, #c92b2b); }
+    .btn.ghost { background:rgba(255,255,255,.06); color:var(--text); }
+
+    .hint {
+      color:var(--muted);
+      font-size:.88rem;
+      line-height:1.35;
+    }
+
+    .workspace {
+      display:grid;
+      grid-template-columns:minmax(260px, 340px) minmax(0, 1fr) minmax(270px, 340px);
+      gap:12px;
+      align-items:start;
+      flex:1;
+      min-height:0;
+    }
+
+    .panel {
+      border-radius:var(--radius-lg);
+      overflow:hidden;
+    }
+
+    .panel-head {
+      padding:12px 14px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      background:rgba(0,0,0,.12);
+    }
+
+    .panel-title {
+      margin:0;
+      color:var(--gold-soft);
+      font-size:1rem;
+      line-height:1.1;
+    }
+
+    .panel-sub {
+      margin:4px 0 0;
+      color:var(--muted);
+      font-size:.82rem;
+      line-height:1.25;
+    }
+
+    .panel-body { padding:12px; }
+
+    .deck-panel {
+      position:sticky;
+      top:10px;
+      max-height:calc(100dvh - 160px);
+      display:flex;
+      flex-direction:column;
+    }
+
+    .deck-panel .panel-body {
+      overflow:auto;
+      scrollbar-width:thin;
+    }
+
+    .deck-controls {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-bottom:10px;
+    }
+
+    .deck-grid {
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:7px;
+    }
+
+    .card-tile {
+      width:100%;
+      aspect-ratio:.70;
+      min-height:54px;
+      border-radius:11px;
+      border:1px solid rgba(0,0,0,.18);
+      background:linear-gradient(180deg, #fff, #f0f0f0);
+      color:#111;
+      display:grid;
+      place-items:center;
+      position:relative;
+      font-weight:950;
+      box-shadow:0 8px 14px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.8);
+      cursor:grab;
+      user-select:none;
+      touch-action:manipulation;
+      transition:transform .1s ease, opacity .12s ease, box-shadow .12s ease;
+    }
+
+    .card-tile:hover { transform:translateY(-1px); }
+    .card-tile.red { color:#c62828; }
+    .card-tile.used {
+      opacity:.28;
+      filter:grayscale(.8);
+      cursor:not-allowed;
+      transform:none;
+    }
+    .card-tile.selected {
+      outline:3px solid rgba(255,216,77,.9);
+      box-shadow:0 0 0 5px rgba(255,216,77,.14), 0 12px 22px rgba(0,0,0,.30);
+    }
+
+    .tile-rank {
+      position:absolute;
+      top:9%;
+      left:10%;
+      font-size:clamp(.72rem, 2vw, .95rem);
+      line-height:1;
+    }
+
+    .tile-suit {
+      font-size:clamp(1.1rem, 3.8vw, 1.65rem);
+      line-height:1;
+    }
+
+    .board {
+      display:grid;
+      gap:12px;
+    }
+
+    .card-area {
+      padding:12px;
+      border-radius:var(--radius-lg);
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,216,77,.10), transparent 60%),
+        linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
+        rgba(4,22,11,.82);
+      border:1px solid var(--line);
+      box-shadow:0 16px 45px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .section-label {
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:baseline;
+      margin-bottom:10px;
+    }
+
+    .section-label h2 {
+      margin:0;
+      color:var(--gold);
+      font-size:clamp(1rem, 2.5vw, 1.2rem);
+    }
+
+    .section-label span {
+      color:var(--muted);
+      font-size:.82rem;
+    }
+
+    .slots {
+      display:flex;
+      gap:clamp(6px, 1vw, 10px);
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    .slot {
+      width:var(--card-w);
+      height:var(--card-h);
+      border-style:dashed;
+      border-color:rgba(255,255,255,.25);
+      border-radius:clamp(10px, 1.5vw, 14px);
+      display:grid;
+      place-items:center;
+      position:relative;
+      color:var(--muted);
+      cursor:pointer;
+      transition:transform .12s ease, border-color .12s ease, box-shadow .12s ease, background .12s ease;
+      touch-action:manipulation;
+      overflow:hidden;
+    }
+
+    .slot::before {
+      content:attr(data-label);
+      position:absolute;
+      top:8px;
+      left:8px;
+      right:8px;
+      font-size:.68rem;
+      font-weight:850;
+      letter-spacing:.4px;
+      text-transform:uppercase;
+      color:rgba(255,255,255,.42);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .slot.empty::after {
+      content:"+";
+      font-size:1.8rem;
+      color:rgba(255,255,255,.34);
+    }
+
+    .slot.drag-over,
+    .slot.place-ready {
+      transform:translateY(-2px);
+      border-color:rgba(255,216,77,.86);
+      box-shadow:0 0 0 4px rgba(255,216,77,.12), 0 14px 28px rgba(0,0,0,.24);
+      background:
+        radial-gradient(circle at center, rgba(255,216,77,.14), transparent 60%),
+        rgba(0,0,0,.18);
+    }
+
+    .slot-card {
+      width:100%;
+      height:100%;
+      border-radius:inherit;
+      border:1px solid rgba(0,0,0,.18);
+      background:linear-gradient(180deg, #fff, #f1f1f1);
+      color:#111;
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      font-weight:950;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+    }
+
+    .slot-card.red { color:#c62828; }
+
+    .slot-card .corner {
+      position:absolute;
+      font-size:clamp(.72rem, calc(var(--card-w) * .22), 1rem);
+      line-height:1;
+    }
+
+    .slot-card .corner.tl { top:9%; left:10%; }
+    .slot-card .corner.br { bottom:9%; right:10%; transform:rotate(180deg); }
+    .slot-card .pip { font-size:clamp(1.2rem, calc(var(--card-w) * .45), 2rem); line-height:1; }
+
+    .hero-panel {
+      display:grid;
+      gap:12px;
+    }
+
+    .confidence-card {
+      padding:16px;
+      border-radius:var(--radius-lg);
+      background:
+        radial-gradient(circle at 18% 18%, rgba(255,216,77,.15), transparent 28%),
+        linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.022)),
+        rgba(5,24,13,.88);
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 16px 42px rgba(0,0,0,.28);
+    }
+
+    .confidence-top {
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
+    }
+
+    .confidence-value {
+      font-size:clamp(2.4rem, 8vw, 4rem);
+      font-weight:950;
+      color:var(--gold);
+      line-height:.95;
+      text-shadow:0 6px 24px rgba(0,0,0,.4);
+    }
+
+    .confidence-label {
+      color:var(--muted);
+      font-weight:850;
+      text-transform:uppercase;
+      letter-spacing:.45px;
+      font-size:.78rem;
+    }
+
+    .meter {
+      height:14px;
+      border-radius:999px;
+      overflow:hidden;
+      background:rgba(0,0,0,.28);
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:inset 0 1px 4px rgba(0,0,0,.35);
+    }
+
+    .meter-fill {
+      width:0%;
+      height:100%;
+      border-radius:inherit;
+      background:linear-gradient(90deg, #ef4444, #ffd84d 52%, #4ade80);
+      transition:width .18s ease;
+    }
+
+    .stats-grid {
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:8px;
+      margin-top:12px;
+    }
+
+    .stat {
+      padding:10px;
+      border-radius:14px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+    }
+
+    .stat strong {
+      display:block;
+      color:var(--gold-soft);
+      font-size:1.05rem;
+    }
+
+    .stat span {
+      color:var(--muted);
+      font-size:.78rem;
+      font-weight:750;
+    }
+
+    .summary-list {
+      display:grid;
+      gap:8px;
+    }
+
+    .summary-card {
+      padding:10px;
+      border-radius:14px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+    }
+
+    .summary-card strong { color:var(--gold-soft); }
+    .summary-card p {
+      margin:4px 0 0;
+      color:var(--muted);
+      line-height:1.35;
+      font-size:.86rem;
+    }
+
+    .selected-card-pill {
+      display:none;
+      align-items:center;
+      gap:8px;
+      width:max-content;
+      max-width:100%;
+      padding:7px 10px;
+      border-radius:999px;
+      color:var(--gold-soft);
+      background:rgba(255,216,77,.12);
+      border:1px solid rgba(255,216,77,.22);
+      font-weight:850;
+    }
+    .selected-card-pill.show { display:inline-flex; }
+    .selected-card-pill button {
+      border:0;
+      width:22px;
+      height:22px;
+      border-radius:999px;
+      background:rgba(255,255,255,.15);
+      color:#fff;
+      cursor:pointer;
+    }
+
+    .modal {
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      background:rgba(0,0,0,.58);
+      z-index:50;
+    }
+
+    .modal.show { display:flex; }
+
+    .modal-card {
+      width:min(100%, 460px);
+      border-radius:var(--radius-lg);
+      background:linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.035)), var(--panel-strong);
+      padding:18px;
+    }
+
+    .modal-card h2 {
+      margin:0 0 6px;
+      color:var(--gold);
+      font-size:1.25rem;
+    }
+
+    .modal-card p {
+      margin:0 0 14px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+
+    .picker-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-bottom:12px;
+    }
+
+    .modal-actions {
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      flex-wrap:wrap;
+    }
+
+    .toast {
+      position:fixed;
+      left:50%;
+      top:16px;
+      transform:translateX(-50%) translateY(-12px);
+      opacity:0;
+      pointer-events:none;
+      z-index:70;
+      width:min(92vw, 470px);
+      padding:12px 16px;
+      border-radius:999px;
+      text-align:center;
+      color:var(--gold-soft);
+      font-weight:850;
+      background:rgba(7,30,14,.92);
+      border:1px solid rgba(255,216,77,.32);
+      box-shadow:0 18px 45px rgba(0,0,0,.45);
+      transition:opacity .2s ease, transform .2s ease;
+    }
+
+    .toast.show {
+      opacity:1;
+      transform:translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 1080px) {
+      .workspace { grid-template-columns:minmax(0, 1fr); }
+      .deck-panel { position:static; max-height:none; }
+      .deck-grid { grid-template-columns:repeat(13, minmax(38px, 1fr)); }
+      .card-tile { min-height:50px; }
+      .panel.deck-panel .panel-body { max-height:250px; }
+    }
+
+    @media (max-width: 760px) {
+      :root { --card-w: clamp(46px, 16vw, 60px); }
+      header { grid-template-columns:1fr; }
+      .header-actions { min-width:0; }
+      .toolbar { align-items:stretch; }
+      .toolbar-group { width:100%; }
+      .toolbar-group .btn { flex:1 1 130px; }
+      .deck-controls { grid-template-columns:1fr; }
+      .deck-grid { grid-template-columns:repeat(4, minmax(0, 1fr)); }
+      .picker-grid { grid-template-columns:1fr; }
+      .stats-grid { grid-template-columns:1fr; }
+      .confidence-top { align-items:flex-start; flex-direction:column; }
+    }
+
+    /* Simplified click-to-enter evaluator layout */
+    .simplified-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .simplified-layout .hero-panel {
+      display: block;
+    }
+
+    .simplified-layout .confidence-card {
+      width: min(100%, 760px);
+      margin: 0 auto;
+    }
+
+    .simplified-layout .board {
+      grid-template-columns: 1fr 1fr;
+      align-items: stretch;
+    }
+
+    .simplified-layout .card-area {
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .slot {
+      cursor: pointer;
+    }
+
+    .slot:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255,216,77,.70);
+      box-shadow: 0 0 0 4px rgba(255,216,77,.10), 0 14px 28px rgba(0,0,0,.22);
+    }
+
+    @media (max-width: 900px) {
+      .simplified-layout .hero-panel,
+      .simplified-layout .board {
+        grid-template-columns: 1fr;
+      }
+
+      .simplified-layout .card-area {
+        min-height: auto;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <div class="eyebrow">Poker Analysis Tool</div>
+        <h1>Hold'em Confidence Evaluator</h1>
+        <p class="header-copy">Click your two hole-card slots and the community-card slots to enter cards. Unknown bot/opponent hands are simulated from the remaining deck, so confidence updates as the board develops.</p>
+      </div>
+      <div class="header-actions">
+        <label class="field">Unknown opponents / bots
+          <select id="opponentCount"></select>
+        </label>
+        <label class="field">Simulation quality
+          <select id="simulationCount">
+            <option value="600">Fast · 600 hands</option>
+            <option value="1500" selected>Balanced · 1,500 hands</option>
+            <option value="4000">Deeper · 4,000 hands</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+
+    <main class="workspace simplified-layout">
+<aside class="hero-panel">
+        <section class="confidence-card">
+          <div class="confidence-top">
+            <div>
+              <div class="confidence-label">Confidence / equity vs unknown opponents</div>
+              <div id="confidenceValue" class="confidence-value">—</div>
+            </div>
+            <div id="handName" class="badge">Waiting</div>
+          </div>
+          <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+          <div class="stats-grid">
+            <div class="stat"><strong id="winStat">—</strong><span>Win</span></div>
+            <div class="stat"><strong id="tieStat">—</strong><span>Tie</span></div>
+            <div class="stat"><strong id="lossStat">—</strong><span>Lose</span></div>
+          </div>
+        </section>
+</aside>
+
+      <section class="board">
+        <section class="card-area">
+          <div class="section-label">
+            <h2>Your Hand</h2>
+            <span>Known hole cards</span>
+          </div>
+          <div id="heroSlots" class="slots"></div>
+        </section>
+
+        <section class="card-area">
+          <div class="section-label">
+            <h2>Community Cards</h2>
+            <span>Flop · Turn · River</span>
+          </div>
+          <div id="communitySlots" class="slots"></div>
+        </section>
+      </section>
+</main>
+  </div>
+
+  <div class="modal" id="cardModal">
+    <div class="modal-card">
+      <h2 id="modalTitle">Edit Card</h2>
+      <p>Choose a card for this slot. Already-used cards are blocked.</p>
+      <div class="picker-grid">
+        <label class="field">Rank
+          <select id="modalRank"></select>
+        </label>
+        <label class="field">Suit
+          <select id="modalSuit">
+            <option value="S">Spades ♠</option>
+            <option value="H">Hearts ♥</option>
+            <option value="D">Diamonds ♦</option>
+            <option value="C">Clubs ♣</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="modalClear">Clear Slot</button>
+        <button class="btn secondary" id="modalCancel">Cancel</button>
+        <button class="btn" id="modalSave">Save Card</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const suits = ['S','H','D','C'];
+    const suitLabels = {S:'Spades', H:'Hearts', D:'Diamonds', C:'Clubs'};
+    const suitSymbols = {S:'♠', H:'♥', D:'♦', C:'♣'};
+    const rankNames = {2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A'};
+    const rankOrder = [14,13,12,11,10,9,8,7,6,5,4,3,2];
+
+    const state = {
+      opponentCount: 4,
+      simulationCount: 1500,
+      selectedCard: null,
+      editingSlot: null,
+      slots: {
+        hero: [null, null],
+        community: [null, null, null, null, null]
+      },
+      lastEvaluation: null
+    };
+
+    function makeDeck() {
+      const deck = [];
+      for (const suit of suits) {
+        for (let rank = 2; rank <= 14; rank++) deck.push({rank, suit});
+      }
+      return deck;
+    }
+
+    function cardKey(card) {
+      return card ? `${card.rank}${card.suit}` : null;
+    }
+
+    function parseCardKey(key) {
+      if (!key) return null;
+      return {rank: parseInt(key.slice(0, -1), 10), suit: key.slice(-1)};
+    }
+
+    function cardLabel(card) {
+      return card ? `${rankNames[card.rank]}${suitSymbols[card.suit]}` : '';
+    }
+
+    function isRed(card) {
+      return card && (card.suit === 'H' || card.suit === 'D');
+    }
+
+    function usedKeys(exceptSlot = null) {
+      const keys = new Set();
+      state.slots.hero.forEach((card, i) => {
+        if (card && !(exceptSlot && exceptSlot.type === 'hero' && exceptSlot.index === i)) keys.add(cardKey(card));
+      });
+      state.slots.community.forEach((card, i) => {
+        if (card && !(exceptSlot && exceptSlot.type === 'community' && exceptSlot.index === i)) keys.add(cardKey(card));
+      });
+      return keys;
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    function getStraightHigh(ranks) {
+      const unique = Array.from(new Set(ranks)).sort((a,b) => b - a);
+      if (unique.includes(14)) unique.push(1);
+      for (let high = 14; high >= 5; high--) {
+        const needed = [high, high-1, high-2, high-3, high-4];
+        if (needed.every(rank => unique.includes(rank))) return high;
+      }
+      return null;
+    }
+
+    function evaluateHand(cards) {
+      const groups = {};
+      const ranks = [];
+      for (const c of cards) {
+        ranks.push(c.rank);
+        groups[c.rank] = (groups[c.rank] || 0) + 1;
+      }
+      const groupArr = Object.keys(groups).map(r => ({rank: parseInt(r, 10), count: groups[r]}));
+      groupArr.sort((a,b) => b.count === a.count ? b.rank - a.rank : b.count - a.count);
+      const sortedRanks = ranks.slice().sort((a,b) => b - a);
+
+      const suitGroups = {};
+      for (const c of cards) {
+        if (!suitGroups[c.suit]) suitGroups[c.suit] = [];
+        suitGroups[c.suit].push(c);
+      }
+
+      for (const suit in suitGroups) {
+        if (suitGroups[suit].length >= 5) {
+          const sfHigh = getStraightHigh(suitGroups[suit].map(c => c.rank));
+          if (sfHigh) return {value: 8, name: 'Straight Flush', tie: [sfHigh]};
+        }
+      }
+
+      const quad = groupArr.find(g => g.count === 4);
+      if (quad) {
+        const kicker = sortedRanks.find(r => r !== quad.rank);
+        return {value: 7, name: 'Four of a Kind', tie: [quad.rank, kicker]};
+      }
+
+      const trips = groupArr.filter(g => g.count >= 3).sort((a,b) => b.rank - a.rank);
+      const pairs = groupArr.filter(g => g.count >= 2).sort((a,b) => b.rank - a.rank);
+      if (trips.length >= 1) {
+        const bestTrip = trips[0];
+        const bestPair = pairs.find(p => p.rank !== bestTrip.rank);
+        if (bestPair) return {value: 6, name: 'Full House', tie: [bestTrip.rank, bestPair.rank]};
+      }
+
+      for (const suit in suitGroups) {
+        if (suitGroups[suit].length >= 5) {
+          const ranksFlush = suitGroups[suit].map(c => c.rank).sort((a,b) => b - a).slice(0,5);
+          return {value: 5, name: 'Flush', tie: ranksFlush};
+        }
+      }
+
+      const straightHigh = getStraightHigh(ranks);
+      if (straightHigh) return {value: 4, name: 'Straight', tie: [straightHigh]};
+
+      if (trips.length >= 1) {
+        const t = trips[0];
+        const kickers = sortedRanks.filter(r => r !== t.rank).slice(0,2);
+        return {value: 3, name: 'Three of a Kind', tie: [t.rank, ...kickers]};
+      }
+
+      const realPairs = groupArr.filter(g => g.count >= 2).sort((a,b) => b.rank - a.rank);
+      if (realPairs.length >= 2) {
+        const topPairs = realPairs.slice(0,2);
+        const kicker = sortedRanks.find(r => r !== topPairs[0].rank && r !== topPairs[1].rank);
+        return {value: 2, name: 'Two Pair', tie: [topPairs[0].rank, topPairs[1].rank, kicker]};
+      }
+
+      if (realPairs.length === 1) {
+        const p = realPairs[0];
+        const kickers = sortedRanks.filter(r => r !== p.rank).slice(0,3);
+        return {value: 1, name: 'One Pair', tie: [p.rank, ...kickers]};
+      }
+
+      return {value: 0, name: 'High Card', tie: sortedRanks.slice(0,5)};
+    }
+
+    function compareHands(a, b) {
+      if (a.value > b.value) return 1;
+      if (a.value < b.value) return -1;
+      const max = Math.max(a.tie.length, b.tie.length);
+      for (let i=0; i<max; i++) {
+        const av = a.tie[i] || 0;
+        const bv = b.tie[i] || 0;
+        if (av > bv) return 1;
+        if (av < bv) return -1;
+      }
+      return 0;
+    }
+
+    function shuffleInPlace(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function remainingDeck() {
+      const used = usedKeys();
+      return makeDeck().filter(card => !used.has(cardKey(card)));
+    }
+
+    function evaluateConfidence() {
+      const hero = state.slots.hero.filter(Boolean);
+      const knownBoard = state.slots.community.filter(Boolean);
+      const boardNeeded = 5 - knownBoard.length;
+
+      if (hero.length < 2) {
+        state.lastEvaluation = null;
+        return;
+      }
+
+      const simulations = state.simulationCount;
+      let wins = 0;
+      let ties = 0;
+      let losses = 0;
+      let completed = 0;
+
+      const baseDeck = remainingDeck();
+      const neededCards = boardNeeded + state.opponentCount * 2;
+      if (baseDeck.length < neededCards) {
+        state.lastEvaluation = null;
+        return;
+      }
+
+      for (let i = 0; i < simulations; i++) {
+        const deck = shuffleInPlace(baseDeck.slice());
+        let cursor = 0;
+        const simBoard = knownBoard.concat(deck.slice(cursor, cursor + boardNeeded));
+        cursor += boardNeeded;
+
+        const heroEval = evaluateHand(hero.concat(simBoard));
+        let bestOpponentEval = null;
+        let heroLost = false;
+        let heroTied = false;
+
+        for (let opp = 0; opp < state.opponentCount; opp++) {
+          const oppCards = deck.slice(cursor, cursor + 2);
+          cursor += 2;
+          const oppEval = evaluateHand(oppCards.concat(simBoard));
+          const cmp = compareHands(heroEval, oppEval);
+          if (cmp < 0) {
+            heroLost = true;
+            break;
+          }
+          if (cmp === 0) heroTied = true;
+          if (!bestOpponentEval || compareHands(oppEval, bestOpponentEval) > 0) bestOpponentEval = oppEval;
+        }
+
+        if (heroLost) losses++;
+        else if (heroTied) ties++;
+        else wins++;
+        completed++;
+      }
+
+      const heroCurrentHand = hero.concat(knownBoard).length >= 5 ? evaluateHand(hero.concat(knownBoard)) : null;
+      state.lastEvaluation = {
+        simulations: completed,
+        wins,
+        ties,
+        losses,
+        winRate: completed ? wins / completed : 0,
+        tieRate: completed ? ties / completed : 0,
+        lossRate: completed ? losses / completed : 0,
+        equity: completed ? (wins + ties * 0.5) / completed : 0,
+        currentHand: heroCurrentHand
+      };
+    }
+
+    function renderSlotCard(card) {
+      if (!card) return '';
+      return `
+        <div class="slot-card ${isRed(card) ? 'red' : ''}">
+          <span class="corner tl">${rankNames[card.rank]}</span>
+          <span class="pip">${suitSymbols[card.suit]}</span>
+          <span class="corner br">${rankNames[card.rank]}</span>
+        </div>
+      `;
+    }
+
+    function makeSlot(slotInfo, card, label) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = `slot ${card ? 'filled' : 'empty'}`;
+      el.dataset.label = label;
+      el.dataset.slot = JSON.stringify(slotInfo);
+      el.setAttribute('aria-label', card ? `${label}: ${cardLabel(card)}` : `${label}: empty`);
+      el.innerHTML = renderSlotCard(card);
+
+      el.addEventListener('dragover', event => {
+        event.preventDefault();
+        el.classList.add('drag-over');
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', event => {
+        event.preventDefault();
+        el.classList.remove('drag-over');
+        placeCard(slotInfo, parseCardKey(event.dataTransfer.getData('text/plain')));
+      });
+      el.addEventListener('click', () => {
+        openCardModal(slotInfo);
+      });
+      return el;
+    }
+
+    function renderHero() {
+      const wrap = document.getElementById('heroSlots');
+      wrap.innerHTML = '';
+      state.slots.hero.forEach((card, index) => {
+        wrap.appendChild(makeSlot({type:'hero', index}, card, `Hole ${index + 1}`));
+      });
+    }
+
+    function renderCommunity() {
+      const wrap = document.getElementById('communitySlots');
+      wrap.innerHTML = '';
+      const labels = ['Flop 1', 'Flop 2', 'Flop 3', 'Turn', 'River'];
+      state.slots.community.forEach((card, index) => {
+        wrap.appendChild(makeSlot({type:'community', index}, card, labels[index]));
+      });
+    }
+
+    function getSlotCard(slotInfo) {
+      if (slotInfo.type === 'hero') return state.slots.hero[slotInfo.index];
+      return state.slots.community[slotInfo.index];
+    }
+
+    function setSlotCard(slotInfo, card) {
+      if (slotInfo.type === 'hero') state.slots.hero[slotInfo.index] = card;
+      else state.slots.community[slotInfo.index] = card;
+    }
+
+    function placeCard(slotInfo, card) {
+      if (!card) return;
+      const key = cardKey(card);
+      const used = usedKeys(slotInfo);
+      if (used.has(key)) {
+        showToast(`${cardLabel(card)} is already in another slot.`);
+        return;
+      }
+      setSlotCard(slotInfo, card);
+      state.selectedCard = null;
+      evaluateConfidence();
+      renderAll(false);
+    }
+
+    function openCardModal(slotInfo) {
+      state.editingSlot = slotInfo;
+      const existing = getSlotCard(slotInfo);
+      document.getElementById('modalTitle').textContent = existing ? `Edit ${cardLabel(existing)}` : 'Choose a Card';
+      document.getElementById('modalRank').value = existing ? String(existing.rank) : '14';
+      document.getElementById('modalSuit').value = existing ? existing.suit : 'S';
+      document.getElementById('cardModal').classList.add('show');
+      updateModalAvailability();
+    }
+
+    function closeCardModal() {
+      document.getElementById('cardModal').classList.remove('show');
+      state.editingSlot = null;
+    }
+
+    function updateModalAvailability() {
+      const slotInfo = state.editingSlot;
+      if (!slotInfo) return;
+      const used = usedKeys(slotInfo);
+      const rankSelect = document.getElementById('modalRank');
+      const suitSelect = document.getElementById('modalSuit');
+
+      for (const suitOption of suitSelect.options) {
+        const candidate = {rank: parseInt(rankSelect.value, 10), suit: suitOption.value};
+        suitOption.disabled = used.has(cardKey(candidate));
+      }
+
+      const currentCandidate = {rank: parseInt(rankSelect.value, 10), suit: suitSelect.value};
+      if (used.has(cardKey(currentCandidate))) {
+        const available = suits.find(s => !used.has(cardKey({rank: currentCandidate.rank, suit: s})));
+        if (available) suitSelect.value = available;
+      }
+    }
+
+    function formatPct(value) {
+      return `${Math.round(value * 1000) / 10}%`;
+    }
+
+    function renderConfidence() {
+      const evaluation = state.lastEvaluation;
+      const heroCount = state.slots.hero.filter(Boolean).length;
+      const boardCount = state.slots.community.filter(Boolean).length;
+
+      const confidenceValue = document.getElementById('confidenceValue');
+      const meterFill = document.getElementById('meterFill');
+      const handName = document.getElementById('handName');
+      const winStat = document.getElementById('winStat');
+      const tieStat = document.getElementById('tieStat');
+      const lossStat = document.getElementById('lossStat');
+
+      if (!evaluation || heroCount < 2) {
+        confidenceValue.textContent = '—';
+        meterFill.style.width = '0%';
+        handName.textContent = heroCount < 2 ? 'Add your hand' : 'Waiting';
+        winStat.textContent = '—';
+        tieStat.textContent = '—';
+        lossStat.textContent = '—';
+        return;
+      }
+
+      confidenceValue.textContent = formatPct(evaluation.equity);
+      meterFill.style.width = `${Math.max(0, Math.min(100, evaluation.equity * 100))}%`;
+      handName.textContent = evaluation.currentHand ? evaluation.currentHand.name : boardCount < 3 ? 'Pre-Flop Equity' : 'Drawing / Incomplete Board';
+      winStat.textContent = formatPct(evaluation.winRate);
+      tieStat.textContent = formatPct(evaluation.tieRate);
+      lossStat.textContent = formatPct(evaluation.lossRate);
+    }
+
+    function renderAll(recalculate = false) {
+      if (recalculate) evaluateConfidence();
+      renderHero();
+      renderCommunity();
+      renderConfidence();
+    }
+
+    function initSelects() {
+      const oppSelect = document.getElementById('opponentCount');
+      for (let i=1; i<=9; i++) {
+        const option = document.createElement('option');
+        option.value = String(i);
+        option.textContent = `${i} unknown ${i === 1 ? 'opponent' : 'opponents'}`;
+        if (i === state.opponentCount) option.selected = true;
+        oppSelect.appendChild(option);
+      }
+
+      const modalRank = document.getElementById('modalRank');
+      for (const rank of rankOrder) {
+        const option = document.createElement('option');
+        option.value = String(rank);
+        option.textContent = rankNames[rank];
+        modalRank.appendChild(option);
+      }
+    }
+
+    function bindControls() {
+      document.getElementById('opponentCount').addEventListener('change', event => {
+        state.opponentCount = parseInt(event.target.value, 10);
+        evaluateConfidence();
+        renderAll(false);
+      });
+
+      document.getElementById('simulationCount').addEventListener('change', event => {
+        state.simulationCount = parseInt(event.target.value, 10);
+        evaluateConfidence();
+        renderAll(false);
+      });
+
+
+
+
+      document.getElementById('modalRank').addEventListener('change', updateModalAvailability);
+      document.getElementById('modalSuit').addEventListener('change', updateModalAvailability);
+      document.getElementById('modalCancel').addEventListener('click', closeCardModal);
+
+      document.getElementById('modalClear').addEventListener('click', () => {
+        if (state.editingSlot) {
+          setSlotCard(state.editingSlot, null);
+          closeCardModal();
+          evaluateConfidence();
+          renderAll(false);
+        }
+      });
+
+      document.getElementById('modalSave').addEventListener('click', () => {
+        if (!state.editingSlot) return;
+        const card = {
+          rank: parseInt(document.getElementById('modalRank').value, 10),
+          suit: document.getElementById('modalSuit').value
+        };
+        const used = usedKeys(state.editingSlot);
+        if (used.has(cardKey(card))) {
+          showToast(`${cardLabel(card)} is already placed.`);
+          return;
+        }
+        setSlotCard(state.editingSlot, card);
+        closeCardModal();
+        evaluateConfidence();
+        renderAll(false);
+      });
+
+      document.getElementById('cardModal').addEventListener('click', event => {
+        if (event.target.id === 'cardModal') closeCardModal();
+      });
+
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          closeCardModal();
+          renderAll(false);
+        }
+      });
+    }
+
+    initSelects();
+    bindControls();
+    renderAll(false);
+  </script>
+</body>
+</html>
